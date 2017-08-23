@@ -14,6 +14,7 @@ import com.google.common.collect.Streams;
 import com.google.common.reflect.TypeToken;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -388,12 +389,20 @@ public class JTransaction {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T toVanilla(T elem) {
-        JObject jo = (JObject)elem;
-        TreeMap<Integer, JField> tm = jo.getJClass().jfields;
+    public <T> T toVanilla(T elem) {
+        if (!(elem instanceof JObject)) {
+            throw new UnsupportedOperationException(elem.getClass().getName() + " isn't a JObject (JsimpleDB) subclass");
+        }
+
+        Class<?> modelClass = ((JObject)elem).getModelClass();
+        if (Modifier.isAbstract(modelClass.getModifiers()) || modelClass.isInterface()) {
+            throw new UnsupportedOperationException("Model class needs to be a POJO but was abstract or interface");
+        }
+
+        TreeMap<Integer, JField> tm = ((JObject)elem).getJClass().jfields;
         T rv;
         try {
-            rv = (T)jo.getModelClass().newInstance();
+            rv = (T)modelClass.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
             throw new UnsupportedOperationException(e);
         }
