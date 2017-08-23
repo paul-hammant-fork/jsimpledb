@@ -267,6 +267,11 @@ public class BasicTest extends TestSupport {
         assertEquals(p4.getName(), "Fred");
         Assert.assertSame(p4.getClass(), PojoPerson.class);
 
+        PojoPerson p6 = txn.toVanilla(keyedOnId(txn).asMap().get(123).first());
+        assertEquals(p6.getId(), 123);
+        assertEquals(p6.getName(), "Fred");
+        Assert.assertSame(p6.getClass(), PojoPerson.class);
+
         txn.commit();
         JTransaction.setCurrent(null);
 
