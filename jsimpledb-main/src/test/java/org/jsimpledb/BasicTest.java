@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.SortedSet;
 
 import org.jsimpledb.annotation.JField;
@@ -21,6 +22,7 @@ import org.jsimpledb.annotation.JSimpleClass;
 import org.jsimpledb.core.DeletedObjectException;
 import org.jsimpledb.core.ObjId;
 import org.jsimpledb.core.ReferencedObjectException;
+import org.jsimpledb.core.StaleTransactionException;
 import org.jsimpledb.core.util.ObjIdMap;
 import org.jsimpledb.index.Index;
 import org.jsimpledb.index.Index2;
@@ -29,6 +31,8 @@ import org.jsimpledb.tuple.Tuple2;
 import org.jsimpledb.tuple.Tuple3;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import static org.testng.AssertJUnit.assertEquals;
 
 public class BasicTest extends TestSupport {
 
@@ -236,6 +240,82 @@ public class BasicTest extends TestSupport {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testBasicPojoStuff() throws Exception {
+        final JSimpleDB jdb = BasicTest.getJSimpleDB();
+
+        JTransaction txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+        PojoPerson p = txn.create(PojoPerson.class);
+        p.setId(123);
+        p.setName("Fred");
+        PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
+        assertEquals(p2.getId(), 123);
+        assertEquals(p2.getName(), "Fred");
+        NavigableSet<PojoPerson> ppl = keyedOnId(txn).asMap().get(456);
+        Assert.assertNull(ppl);
+
+        NavigableSet<PojoPerson> foo = txn.getAll(PojoPerson.class);
+        PojoPerson p3 = foo.iterator().next();
+        assertEquals(p3.getId(), 123);
+        assertEquals(p3.getName(), "Fred");
+        assertEquals(p3.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+
+        List<PojoPerson> bar = txn.getAllVanilla(PojoPerson.class);
+        PojoPerson p4 = bar.get(0);
+        assertEquals(p4.getId(), 123);
+        assertEquals(p4.getName(), "Fred");
+        Assert.assertSame(p4.getClass(), PojoPerson.class);
+
+        txn.commit();
+        JTransaction.setCurrent(null);
+
+        try {
+            keyedOnId(txn);
+            Assert.fail("should have barfed, even read-only operations have to be in a txn");
+        } catch (StaleTransactionException e) {
+            // expected;
+        }
+
+        txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+        p2 = keyedOnId(txn).asMap().get(123).first();
+        assertEquals(p2.getName(), "Fred");
+        txn.rollback();
+
+        txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+        p2 = keyedOnId(txn).asMap().get(123).first();
+        txn.delete((JObject) p2);
+
+        Assert.assertFalse(keyedOnId(txn).asMap().containsKey(123));
+
+        txn.commit();
+
+    }
+
+    private Index<Integer, PojoPerson> keyedOnId(JTransaction txn) {
+        return txn.queryIndex(PojoPerson.class, "id", Integer.class);
+    }
+
+    @JSimpleClass()
+    public static class PojoPerson {
+        private int id;
+        private String name;
+        @JField(indexed = true)
+        public int getId() {
+            return id;
+        }
+        public void setId(int value) {
+            id = value;
+        }
+        @JField()
+        public String getName() {
+            return name;
+        }
+        public void setName(String value) {
+            name = value;
+        }
+    }
+
     private void check(MeanPerson t, boolean z, byte b, short s, char c, int i, float f, long j, double d,
       String string, Mood mood, Person friend, Collection<String> nicknames, List<Integer> scores, List<Person> enemies,
       Object... ratingKeyValues) {
@@ -266,7 +346,7 @@ public class BasicTest extends TestSupport {
     }
 
     public static JSimpleDB getJSimpleDB() {
-        return BasicTest.getJSimpleDB(MeanPerson.class, Person.class);
+        return BasicTest.getJSimpleDB(MeanPerson.class, Person.class, PojoPerson.class);
     }
 
     public static JSimpleDB getJSimpleDB(Class<?>... classes) {
