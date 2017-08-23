@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
 import com.google.common.reflect.TypeToken;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -372,6 +374,37 @@ public class JTransaction {
         if (!keyRanges.isFull())
             ids = ((AbstractKVNavigableSet<ObjId>)ids).filterKeys(keyRanges);
         return new ConvertedNavigableSet<T, ObjId>(ids, new ReferenceConverter<T>(this, type));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> List<T> getAllVanilla(Class<T> type) {
+        NavigableSet<T> all = this.getAll(type);
+        T[] elems = (T[])all.toArray();
+        for (int i = 0; i < elems.length; i++) {
+            T elem = elems[i];
+            elems[i] = toVanilla(elem);
+        }
+        return Collections.unmodifiableList(Arrays.asList(elems));
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T toVanilla(T elem) {
+        JObject jo = (JObject)elem;
+        TreeMap<Integer, JField> tm = jo.getJClass().jfields;
+        T rv;
+        try {
+            rv = (T)jo.getModelClass().newInstance();
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new UnsupportedOperationException(e);
+        }
+        tm.forEach((integer, jField) -> {
+            try {
+                jField.setter.invoke(rv, jField.getter.invoke(elem));
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new UnsupportedOperationException(e);
+            }
+        });
+        return rv;
     }
 
     /**

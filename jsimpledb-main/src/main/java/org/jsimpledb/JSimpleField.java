@@ -49,7 +49,7 @@ public class JSimpleField extends JField {
     @SuppressWarnings("unchecked")
     JSimpleField(JSimpleDB jdb, String name, int storageId, TypeToken<?> typeToken, FieldType<?> fieldType, boolean indexed,
       org.jsimpledb.annotation.JField annotation, String description, Method getter, Method setter) {
-        super(jdb, name, storageId, description, getter);
+        super(jdb, name, storageId, description, getter, setter);
         Preconditions.checkArgument(typeToken != null, "null typeToken");
         Preconditions.checkArgument(fieldType != null, "null fieldType");
         Preconditions.checkArgument(annotation != null, "null annotation");

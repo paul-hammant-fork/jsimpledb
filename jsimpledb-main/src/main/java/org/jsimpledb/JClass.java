@@ -192,7 +192,7 @@ public class JClass<T> extends JSchemaObject {
 
                 // Create counter field
                 final JCounterField jfield = new JCounterField(this.jdb, fieldName, storageId, annotation,
-                  "counter field `" + fieldName + "' of object type `" + this.name + "'", getter);
+                  "counter field `" + fieldName + "' of object type `" + this.name + "'", getter, null);
 
                 // Remember upgrade conversion fields
                 if (annotation.upgradeConversion().isConvertsValues())
@@ -260,7 +260,7 @@ public class JClass<T> extends JSchemaObject {
 
             // Create set field
             final JSetField jfield = new JSetField(this.jdb, fieldName, storageId, elementField,
-              "set field `" + fieldName + "' in object type `" + this.name + "'", getter);
+              "set field `" + fieldName + "' in object type `" + this.name + "'", getter, null);
             elementField.parent = jfield;
 
             // Add field
@@ -300,7 +300,7 @@ public class JClass<T> extends JSchemaObject {
 
             // Create list field
             final JListField jfield = new JListField(this.jdb, fieldName, storageId, elementField,
-              "list field `" + fieldName + "' in object type `" + this.name + "'", getter);
+              "list field `" + fieldName + "' in object type `" + this.name + "'", getter, null);
             elementField.parent = jfield;
 
             // Add field
@@ -346,7 +346,7 @@ public class JClass<T> extends JSchemaObject {
 
             // Create map field
             final JMapField jfield = new JMapField(this.jdb, fieldName, storageId, keyField, valueField,
-              "map field `" + fieldName + "' in object type `" + this.name + "'", getter);
+              "map field `" + fieldName + "' in object type `" + this.name + "'", getter, null);
             keyField.parent = jfield;
             valueField.parent = jfield;
 

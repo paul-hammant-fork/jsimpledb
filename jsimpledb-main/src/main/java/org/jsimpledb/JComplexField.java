@@ -18,8 +18,8 @@ import org.objectweb.asm.ClassWriter;
  */
 public abstract class JComplexField extends JField {
 
-    JComplexField(JSimpleDB jdb, String name, int storageId, String description, Method getter) {
-        super(jdb, name, storageId, description, getter);
+    JComplexField(JSimpleDB jdb, String name, int storageId, String description, Method getter, Method setter) {
+        super(jdb, name, storageId, description, getter, setter);
         Preconditions.checkArgument(name != null, "null name");
     }
 

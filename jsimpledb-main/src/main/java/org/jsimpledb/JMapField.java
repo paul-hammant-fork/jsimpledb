@@ -31,8 +31,8 @@ public class JMapField extends JComplexField {
     final JSimpleField valueField;
 
     JMapField(JSimpleDB jdb, String name, int storageId,
-      JSimpleField keyField, JSimpleField valueField, String description, Method getter) {
-        super(jdb, name, storageId, description, getter);
+      JSimpleField keyField, JSimpleField valueField, String description, Method getter, Method setter) {
+        super(jdb, name, storageId, description, getter, setter);
         Preconditions.checkArgument(keyField != null, "null keyField");
         Preconditions.checkArgument(valueField != null, "null valueField");
         this.keyField = keyField;

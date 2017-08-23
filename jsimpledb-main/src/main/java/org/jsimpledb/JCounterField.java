@@ -25,8 +25,8 @@ public class JCounterField extends JField {
     final UpgradeConversionPolicy upgradeConversion;
 
     JCounterField(JSimpleDB jdb, String name, int storageId,
-      org.jsimpledb.annotation.JField annotation, String description, Method getter) {
-        super(jdb, name, storageId, description, getter);
+      org.jsimpledb.annotation.JField annotation, String description, Method getter, Method setter) {
+        super(jdb, name, storageId, description, getter, setter);
         this.upgradeConversion = annotation.upgradeConversion();
     }
 

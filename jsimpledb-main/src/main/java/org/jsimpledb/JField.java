@@ -28,13 +28,15 @@ import org.objectweb.asm.Type;
 public abstract class JField extends JSchemaObject {
 
     final Method getter;
+    final Method setter;
 
     JSchemaObject parent;                               // either JClass or JComplexField
     boolean requiresDefaultValidation;
 
-    JField(JSimpleDB jdb, String name, int storageId, String description, Method getter) {
+    JField(JSimpleDB jdb, String name, int storageId, String description, Method getter, Method setter) {
         super(jdb, name, storageId, description);
         this.getter = getter;
+        this.setter = setter;
     }
 
     void calculateRequiresDefaultValidation() {

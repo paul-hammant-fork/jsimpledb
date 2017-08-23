@@ -23,8 +23,9 @@ public abstract class JCollectionField extends JComplexField {
 
     final JSimpleField elementField;
 
-    JCollectionField(JSimpleDB jdb, String name, int storageId, JSimpleField elementField, String description, Method getter) {
-        super(jdb, name, storageId, description, getter);
+    JCollectionField(JSimpleDB jdb, String name, int storageId, JSimpleField elementField, String description,
+                     Method getter, Method setter) {
+        super(jdb, name, storageId, description, getter, setter);
         Preconditions.checkArgument(elementField != null, "null elementField");
         this.elementField = elementField;
     }

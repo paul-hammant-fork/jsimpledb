@@ -24,8 +24,9 @@ import org.jsimpledb.schema.SetSchemaField;
  */
 public class JSetField extends JCollectionField {
 
-    JSetField(JSimpleDB jdb, String name, int storageId, JSimpleField elementField, String description, Method getter) {
-        super(jdb, name, storageId, elementField, description, getter);
+    JSetField(JSimpleDB jdb, String name, int storageId, JSimpleField elementField, String description,
+              Method getter, Method setter) {
+        super(jdb, name, storageId, elementField, description, getter, setter);
     }
 
     @Override
