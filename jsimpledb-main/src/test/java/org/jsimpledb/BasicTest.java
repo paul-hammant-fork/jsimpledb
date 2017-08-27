@@ -25,6 +25,8 @@ import org.jsimpledb.tuple.Tuple3;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertSame;
 import static org.testng.Assert.fail;
 import static org.testng.AssertJUnit.assertEquals;
 
@@ -248,6 +250,7 @@ public class BasicTest extends TestSupport {
             PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
             assertEquals(p2.getId(), 123);
             assertEquals(p2.getName(), "Fred");
+
             NavigableSet<PojoPerson> ppl = keyedOnId(txn).asMap().get(456);
             Assert.assertNull(ppl);
 
@@ -260,6 +263,7 @@ public class BasicTest extends TestSupport {
             dino.setName("Dino");
             fred.getDependents().add(pebbles);
             fred.getDependents().add(dino);
+            fred.getDependents().add(pebbles);
         }
 
         {
@@ -268,7 +272,7 @@ public class BasicTest extends TestSupport {
             PojoPerson fred = Sets.filter(people, person -> person.getId() == 123).first();
             assertEquals("Fred", fred.getName());
             assertEquals("org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB", fred.getClass().getName());
-            assertEquals(2, fred.getDependents().size());
+            assertEquals(3, fred.getDependents().size());
             assertEquals("Pebbles", fred.getDependents().get(0).getName());
             assertEquals("Dino", fred.getDependents().get(1).getName());
             assertEquals("org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB", fred.getDependents().get(0).getClass().getName());
@@ -284,17 +288,21 @@ public class BasicTest extends TestSupport {
             assertEquals(3, people.size());
             PojoPerson fred =  people.stream().filter(person -> person.getId() == 123).findFirst().get();
             assertEquals("Fred", fred.getName());
-            Assert.assertSame(PojoPerson.class, fred.getClass());
-            assertEquals("Pebbles", fred.getDependents().get(0).getName());
+            assertSame(PojoPerson.class, fred.getClass());
+            assertEquals(3, fred.getDependents().size());
+            PojoPerson pebbles = fred.getDependents().get(0);
+            assertEquals("Pebbles", pebbles.getName());
             assertEquals("Dino", fred.getDependents().get(1).getName());
             // simple dependents entity is also migrated to POJO
-            assertEquals("org.jsimpledb.BasicTest$PojoPerson", fred.getDependents().get(0).getClass().getName());
+            assertEquals("org.jsimpledb.BasicTest$PojoPerson", pebbles.getClass().getName());
+            PojoPerson pebblesAgain = fred.getDependents().get(2);
+            assertSame(pebbles, pebblesAgain);
         }
 
         {
             PojoPerson fred = txn.toVanilla(keyedOnId(txn).asMap().get(123).first());
             assertEquals("Fred", fred.getName());
-            Assert.assertSame(PojoPerson.class, fred.getClass());
+            assertSame(PojoPerson.class, fred.getClass());
         }
 
 
@@ -400,6 +408,14 @@ public class BasicTest extends TestSupport {
             }
             return dependents;
         }
+
+        @Override
+        public String toString() {
+            return "PojoPerson{" +
+                    "id=" + getId() +
+                    ", name='" + getName() + '\'' +
+                    '}';
+        }
     }
 
     @JSimpleClass()
@@ -433,7 +449,7 @@ public class BasicTest extends TestSupport {
         Assert.assertEquals(t.getD(), d);
         Assert.assertEquals(t.getString(), string);
         Assert.assertEquals(t.getMood(), mood);
-        Assert.assertSame(t.getFriend(), friend);
+        assertSame(t.getFriend(), friend);
         if (nicknames == null)
             nicknames = Collections.<String>emptySet();
         Assert.assertEquals(t.getNicknames().toArray(new String[0]), nicknames.toArray(new String[nicknames.size()]));

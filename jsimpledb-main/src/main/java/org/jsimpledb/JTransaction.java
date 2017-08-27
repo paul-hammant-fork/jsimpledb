@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -389,8 +390,13 @@ public class JTransaction {
         return Collections.unmodifiableList(Arrays.asList(elems));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> T toVanilla(T elem) {
+        Map<ObjId, Object> objMap = new HashMap<>();
+        return toVanilla(objMap, elem);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> T toVanilla(Map<ObjId, Object> objMap, T elem) {
         if (!(elem instanceof JObject)) {
             throw new UnsupportedOperationException(elem.getClass().getName() + " isn't a JObject (JSimpleDB) subclass");
         }
@@ -400,24 +406,37 @@ public class JTransaction {
             throw new UnsupportedOperationException("Model class needs to be a POJO but was abstract or interface");
         }
 
-        TreeMap<Integer, JField> tm = ((JObject)elem).getJClass().jfields;
+        JObject jobj = (JObject)elem;
+        TreeMap<Integer, JField> tm = jobj.getJClass().jfields;
+        ObjId id = jobj.getObjId();
         T rv;
         try {
-            rv = (T)modelClass.newInstance();
+            if (!objMap.containsKey(id)) {
+                rv = (T)modelClass.newInstance();
+                objMap.put(id, rv);
+                populateFields(objMap, elem, tm, rv);
+            } else {
+                rv = (T)objMap.get(id);
+            }
         } catch (InstantiationException | IllegalAccessException e) {
             throw new UnsupportedOperationException(e);
         }
+        return rv;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> void populateFields(final Map<ObjId, Object> objMap, T elem, TreeMap<Integer, JField> tm, T rv) {
         tm.forEach((integer, jField) -> {
             try {
                 Object val = jField.getter.invoke(elem);
                 if (val != null && val.getClass().getName().endsWith("$$JSimpleDB")) {
-                    val = toVanilla(val);
+                    val = toVanilla(objMap, val);
                     jField.setter.invoke(rv, val);
                 } else if (val instanceof ConvertedList) {
                     List list = (List)jField.getter.invoke(rv);
                     ConvertedList listVal = (ConvertedList)val;
                     for (Object o : listVal) {
-                        list.add(toVanilla(o));
+                        list.add(toVanilla(objMap, o));
                     }
                 } else {
                     jField.setter.invoke(rv, val);
@@ -426,7 +445,6 @@ public class JTransaction {
                 throw new UnsupportedOperationException(e);
             }
         });
-        return rv;
     }
 
     /**
