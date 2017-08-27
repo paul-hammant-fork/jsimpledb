@@ -257,10 +257,12 @@ public class BasicTest extends TestSupport {
             PojoPerson pebbles = txn.create(PojoPerson.class);
             pebbles.setId(821);
             pebbles.setName("Pebbles");
+            pebbles.setGuardian(fred);
 
             PojoPerson dino = txn.create(PojoPerson.class);
             dino.setId(822);
             dino.setName("Dino");
+            dino.setGuardian(fred);
             fred.getDependents().add(pebbles);
             fred.getDependents().add(dino);
             fred.getDependents().add(pebbles);
@@ -297,6 +299,7 @@ public class BasicTest extends TestSupport {
             assertEquals("org.jsimpledb.BasicTest$PojoPerson", pebbles.getClass().getName());
             PojoPerson pebblesAgain = fred.getDependents().get(2);
             assertSame(pebbles, pebblesAgain);
+            assertSame(pebbles.getGuardian(), fred);
         }
 
         {
@@ -316,18 +319,25 @@ public class BasicTest extends TestSupport {
             // expected;
         }
 
-        txn = jdb.createTransaction(true, ValidationMode.MANUAL);
-        PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
-        assertEquals("Fred", p2.getName());
-        txn.rollback();
+        {
+            txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+            PojoPerson fred = keyedOnId(txn).asMap().get(123).first();
+            assertEquals("Fred", fred.getName());
+            txn.rollback();
+        }
 
-        txn = jdb.createTransaction(true, ValidationMode.MANUAL);
-        p2 = keyedOnId(txn).asMap().get(123).first();
-        txn.delete((JObject) p2);
+        {
+            txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+            PojoPerson fred = keyedOnId(txn).asMap().get(123).first();
+            for (PojoPerson dependent : fred.getDependents()) {
+                dependent.setGuardian(null);
+            }
+            txn.delete((JObject) fred);
 
-        Assert.assertFalse(keyedOnId(txn).asMap().containsKey(123));
+            Assert.assertFalse(keyedOnId(txn).asMap().containsKey(123));
 
-        txn.commit();
+            txn.commit();
+        }
     }
 
     @Test
@@ -372,7 +382,7 @@ public class BasicTest extends TestSupport {
     public static class PojoPerson {
         private int id;
         private String name;
-        private PojoPerson spouse;
+        private PojoPerson guardian;
         private List<PojoPerson> dependents;
         @JField(indexed = true)
         public int getId() {
@@ -390,11 +400,11 @@ public class BasicTest extends TestSupport {
         }
 
         @JField()
-        public PojoPerson getSpouse() {
-            return spouse;
+        public PojoPerson getGuardian() {
+            return guardian;
         }
-        public void setSpouse(PojoPerson spouse) {
-            this.spouse = spouse;
+        public void setGuardian(PojoPerson guardian) {
+            this.guardian = guardian;
         }
 
         @JListField(element = @JField(indexed = true))
