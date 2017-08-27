@@ -14,6 +14,9 @@ import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.SortedSet;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.jsimpledb.annotation.JField;
 import org.jsimpledb.annotation.JListField;
 import org.jsimpledb.annotation.JMapField;
@@ -32,6 +35,9 @@ import org.jsimpledb.tuple.Tuple3;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import javax.annotation.Nullable;
+
+import static org.testng.Assert.fail;
 import static org.testng.AssertJUnit.assertEquals;
 
 public class BasicTest extends TestSupport {
@@ -246,44 +252,68 @@ public class BasicTest extends TestSupport {
         final JSimpleDB jdb = BasicTest.getJSimpleDB();
 
         JTransaction txn = jdb.createTransaction(true, ValidationMode.MANUAL);
-        PojoPerson p = txn.create(PojoPerson.class);
-        p.setId(123);
-        p.setName("Fred");
-        PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
-        assertEquals(p2.getId(), 123);
-        assertEquals(p2.getName(), "Fred");
-        NavigableSet<PojoPerson> ppl = keyedOnId(txn).asMap().get(456);
-        Assert.assertNull(ppl);
 
-        NavigableSet<PojoPerson> foo = txn.getAll(PojoPerson.class);
-        PojoPerson p3 = foo.iterator().next();
-        assertEquals(p3.getId(), 123);
-        assertEquals(p3.getName(), "Fred");
-        assertEquals(p3.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+        {
+            PojoPerson fred = txn.create(PojoPerson.class);
+            fred.setId(123);
+            fred.setName("Fred");
+            PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
+            assertEquals(p2.getId(), 123);
+            assertEquals(p2.getName(), "Fred");
+            NavigableSet<PojoPerson> ppl = keyedOnId(txn).asMap().get(456);
+            Assert.assertNull(ppl);
 
-        List<PojoPerson> bar = txn.getAllVanilla(PojoPerson.class);
-        PojoPerson p4 = bar.get(0);
-        assertEquals(p4.getId(), 123);
-        assertEquals(p4.getName(), "Fred");
-        Assert.assertSame(p4.getClass(), PojoPerson.class);
+            PojoPerson bambam = txn.create(PojoPerson.class);
+            bambam.setId(821);
+            bambam.setName("Bambam");
+            fred.setChild(bambam);
+        }
 
-        PojoPerson p6 = txn.toVanilla(keyedOnId(txn).asMap().get(123).first());
-        assertEquals(p6.getId(), 123);
-        assertEquals(p6.getName(), "Fred");
-        Assert.assertSame(p6.getClass(), PojoPerson.class);
+        {
+            NavigableSet<PojoPerson> people = txn.getAll(PojoPerson.class);
+            assertEquals(people.size(), 2);
+            PojoPerson fred = Sets.filter(people, person -> person.getId() == 123).first();
+            assertEquals(fred.getName(), "Fred");
+            assertEquals(fred.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+            assertEquals(fred.getChild().getName(), "Bambam");
+            assertEquals(fred.getChild().getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+
+            PojoPerson bambam = Sets.filter(people, input -> input.getId() == 821).first();
+            assertEquals(bambam.getId(), 821);
+            assertEquals(bambam.getName(), "Bambam");
+            assertEquals(bambam.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+        }
+
+        {
+            List<PojoPerson> people = txn.getAllVanilla(PojoPerson.class);
+            assertEquals(people.size(), 2);
+            PojoPerson fred =  people.stream().filter(person -> person.getId() == 123).findFirst().get();
+            assertEquals(fred.getName(), "Fred");
+            Assert.assertSame(fred.getClass(), PojoPerson.class);
+            assertEquals(fred.getChild().getName(), "Bambam");
+            // simple child entity is also migrated to POJO
+            assertEquals(fred.getChild().getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson");
+        }
+
+        {
+            PojoPerson fred = txn.toVanilla(keyedOnId(txn).asMap().get(123).first());
+            assertEquals(fred.getName(), "Fred");
+            Assert.assertSame(fred.getClass(), PojoPerson.class);
+        }
+
 
         txn.commit();
         JTransaction.setCurrent(null);
 
         try {
             keyedOnId(txn);
-            Assert.fail("should have barfed, even read-only operations have to be in a txn");
+            fail("should have barfed, even read-only operations have to be in a txn");
         } catch (StaleTransactionException e) {
             // expected;
         }
 
         txn = jdb.createTransaction(true, ValidationMode.MANUAL);
-        p2 = keyedOnId(txn).asMap().get(123).first();
+        PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
         assertEquals(p2.getName(), "Fred");
         txn.rollback();
 
@@ -294,6 +324,38 @@ public class BasicTest extends TestSupport {
         Assert.assertFalse(keyedOnId(txn).asMap().containsKey(123));
 
         txn.commit();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testVanillaEdgeCases() throws Exception {
+        final JSimpleDB jdb = BasicTest.getJSimpleDB();
+        JTransaction txn = jdb.createTransaction(true, ValidationMode.MANUAL);
+
+        try {
+            txn.toVanilla("hello");
+            fail("should have barfed");
+        } catch (UnsupportedOperationException e) {
+            assertEquals("java.lang.String isn't a JObject (JSimpleDB) subclass", e.getMessage());
+        }
+
+        try {
+            Person person = txn.create(Person.class);
+            person.setString("hello");
+            txn.toVanilla(person);
+            fail("should have barfed");
+        } catch (UnsupportedOperationException e) {
+            assertEquals("Model class needs to be a POJO but was abstract or interface", e.getMessage());
+        }
+
+        try {
+            IPerson person = txn.create(IPerson.class);
+            person.setName("hello");
+            txn.toVanilla(person);
+            fail("should have barfed");
+        } catch (UnsupportedOperationException e) {
+            assertEquals("Model class needs to be a POJO but was abstract or interface", e.getMessage());
+        }
 
     }
 
@@ -301,10 +363,12 @@ public class BasicTest extends TestSupport {
         return txn.queryIndex(PojoPerson.class, "id", Integer.class);
     }
 
+
     @JSimpleClass()
     public static class PojoPerson {
         private int id;
         private String name;
+        private PojoPerson child;
         @JField(indexed = true)
         public int getId() {
             return id;
@@ -319,6 +383,24 @@ public class BasicTest extends TestSupport {
         public void setName(String value) {
             name = value;
         }
+
+        @JField()
+        public PojoPerson getChild() {
+            return child;
+        }
+        public void setChild(PojoPerson child) {
+            this.child = child;
+        }
+    }
+
+    @JSimpleClass()
+    public static interface IPerson {
+        @JField(indexed = true)
+        public int getId();
+        public void setId(int value);
+        @JField()
+        public String getName();
+        public void setName(String value);
     }
 
     private void check(MeanPerson t, boolean z, byte b, short s, char c, int i, float f, long j, double d,
@@ -351,7 +433,7 @@ public class BasicTest extends TestSupport {
     }
 
     public static JSimpleDB getJSimpleDB() {
-        return BasicTest.getJSimpleDB(MeanPerson.class, Person.class, PojoPerson.class);
+        return BasicTest.getJSimpleDB(MeanPerson.class, Person.class, PojoPerson.class, IPerson.class);
     }
 
     public static JSimpleDB getJSimpleDB(Class<?>... classes) {

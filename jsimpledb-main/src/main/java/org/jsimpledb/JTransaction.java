@@ -391,7 +391,7 @@ public class JTransaction {
     @SuppressWarnings("unchecked")
     public <T> T toVanilla(T elem) {
         if (!(elem instanceof JObject)) {
-            throw new UnsupportedOperationException(elem.getClass().getName() + " isn't a JObject (JsimpleDB) subclass");
+            throw new UnsupportedOperationException(elem.getClass().getName() + " isn't a JObject (JSimpleDB) subclass");
         }
 
         Class<?> modelClass = ((JObject)elem).getModelClass();
@@ -408,7 +408,11 @@ public class JTransaction {
         }
         tm.forEach((integer, jField) -> {
             try {
-                jField.setter.invoke(rv, jField.getter.invoke(elem));
+                Object val = jField.getter.invoke(elem);
+                if (val != null && val.getClass().getName().endsWith("$$JSimpleDB")) {
+                    val = toVanilla(val);
+                }
+                jField.setter.invoke(rv, val);
             } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new UnsupportedOperationException(e);
             }
