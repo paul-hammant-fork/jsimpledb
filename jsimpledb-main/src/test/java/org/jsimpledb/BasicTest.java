@@ -5,17 +5,8 @@
 
 package org.jsimpledb;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
-import java.util.SortedSet;
+import java.util.*;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.jsimpledb.annotation.JField;
 import org.jsimpledb.annotation.JListField;
@@ -23,7 +14,6 @@ import org.jsimpledb.annotation.JMapField;
 import org.jsimpledb.annotation.JSetField;
 import org.jsimpledb.annotation.JSimpleClass;
 import org.jsimpledb.core.DeletedObjectException;
-import org.jsimpledb.core.ObjId;
 import org.jsimpledb.core.ReferencedObjectException;
 import org.jsimpledb.core.StaleTransactionException;
 import org.jsimpledb.core.util.ObjIdMap;
@@ -34,8 +24,6 @@ import org.jsimpledb.tuple.Tuple2;
 import org.jsimpledb.tuple.Tuple3;
 import org.testng.Assert;
 import org.testng.annotations.Test;
-
-import javax.annotation.Nullable;
 
 import static org.testng.Assert.fail;
 import static org.testng.AssertJUnit.assertEquals;
@@ -263,42 +251,50 @@ public class BasicTest extends TestSupport {
             NavigableSet<PojoPerson> ppl = keyedOnId(txn).asMap().get(456);
             Assert.assertNull(ppl);
 
-            PojoPerson bambam = txn.create(PojoPerson.class);
-            bambam.setId(821);
-            bambam.setName("Bambam");
-            fred.setChild(bambam);
+            PojoPerson pebbles = txn.create(PojoPerson.class);
+            pebbles.setId(821);
+            pebbles.setName("Pebbles");
+
+            PojoPerson dino = txn.create(PojoPerson.class);
+            dino.setId(822);
+            dino.setName("Dino");
+            fred.getDependents().add(pebbles);
+            fred.getDependents().add(dino);
         }
 
         {
             NavigableSet<PojoPerson> people = txn.getAll(PojoPerson.class);
-            assertEquals(people.size(), 2);
+            assertEquals(3, people.size());
             PojoPerson fred = Sets.filter(people, person -> person.getId() == 123).first();
-            assertEquals(fred.getName(), "Fred");
-            assertEquals(fred.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
-            assertEquals(fred.getChild().getName(), "Bambam");
-            assertEquals(fred.getChild().getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+            assertEquals("Fred", fred.getName());
+            assertEquals("org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB", fred.getClass().getName());
+            assertEquals(2, fred.getDependents().size());
+            assertEquals("Pebbles", fred.getDependents().get(0).getName());
+            assertEquals("Dino", fred.getDependents().get(1).getName());
+            assertEquals("org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB", fred.getDependents().get(0).getClass().getName());
 
-            PojoPerson bambam = Sets.filter(people, input -> input.getId() == 821).first();
-            assertEquals(bambam.getId(), 821);
-            assertEquals(bambam.getName(), "Bambam");
-            assertEquals(bambam.getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB");
+            PojoPerson pebbles = Sets.filter(people, input -> input.getId() == 821).first();
+            assertEquals(821, pebbles.getId());
+            assertEquals("Pebbles", pebbles.getName() );
+            assertEquals("org.jsimpledb.BasicTest$PojoPerson$$JSimpleDB", pebbles.getClass().getName());
         }
 
         {
             List<PojoPerson> people = txn.getAllVanilla(PojoPerson.class);
-            assertEquals(people.size(), 2);
+            assertEquals(3, people.size());
             PojoPerson fred =  people.stream().filter(person -> person.getId() == 123).findFirst().get();
-            assertEquals(fred.getName(), "Fred");
-            Assert.assertSame(fred.getClass(), PojoPerson.class);
-            assertEquals(fred.getChild().getName(), "Bambam");
-            // simple child entity is also migrated to POJO
-            assertEquals(fred.getChild().getClass().getName(), "org.jsimpledb.BasicTest$PojoPerson");
+            assertEquals("Fred", fred.getName());
+            Assert.assertSame(PojoPerson.class, fred.getClass());
+            assertEquals("Pebbles", fred.getDependents().get(0).getName());
+            assertEquals("Dino", fred.getDependents().get(1).getName());
+            // simple dependents entity is also migrated to POJO
+            assertEquals("org.jsimpledb.BasicTest$PojoPerson", fred.getDependents().get(0).getClass().getName());
         }
 
         {
             PojoPerson fred = txn.toVanilla(keyedOnId(txn).asMap().get(123).first());
-            assertEquals(fred.getName(), "Fred");
-            Assert.assertSame(fred.getClass(), PojoPerson.class);
+            assertEquals("Fred", fred.getName());
+            Assert.assertSame(PojoPerson.class, fred.getClass());
         }
 
 
@@ -314,7 +310,7 @@ public class BasicTest extends TestSupport {
 
         txn = jdb.createTransaction(true, ValidationMode.MANUAL);
         PojoPerson p2 = keyedOnId(txn).asMap().get(123).first();
-        assertEquals(p2.getName(), "Fred");
+        assertEquals("Fred", p2.getName());
         txn.rollback();
 
         txn = jdb.createTransaction(true, ValidationMode.MANUAL);
@@ -368,7 +364,8 @@ public class BasicTest extends TestSupport {
     public static class PojoPerson {
         private int id;
         private String name;
-        private PojoPerson child;
+        private PojoPerson spouse;
+        private List<PojoPerson> dependents;
         @JField(indexed = true)
         public int getId() {
             return id;
@@ -385,11 +382,23 @@ public class BasicTest extends TestSupport {
         }
 
         @JField()
-        public PojoPerson getChild() {
-            return child;
+        public PojoPerson getSpouse() {
+            return spouse;
         }
-        public void setChild(PojoPerson child) {
-            this.child = child;
+        public void setSpouse(PojoPerson spouse) {
+            this.spouse = spouse;
+        }
+
+        @JListField(element = @JField(indexed = true))
+        public List<PojoPerson> getDependents() {
+            if (dependents == null) {
+                synchronized (this) {
+                    if (dependents == null) {
+                        dependents = new ArrayList<>();
+                    }
+                }
+            }
+            return dependents;
         }
     }
 

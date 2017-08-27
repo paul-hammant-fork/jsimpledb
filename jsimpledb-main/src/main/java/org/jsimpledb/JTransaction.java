@@ -77,6 +77,7 @@ import org.jsimpledb.tuple.Tuple2;
 import org.jsimpledb.tuple.Tuple3;
 import org.jsimpledb.tuple.Tuple4;
 import org.jsimpledb.util.CloseableIterator;
+import org.jsimpledb.util.ConvertedList;
 import org.jsimpledb.util.ConvertedNavigableMap;
 import org.jsimpledb.util.ConvertedNavigableSet;
 import org.slf4j.Logger;
@@ -388,7 +389,7 @@ public class JTransaction {
         return Collections.unmodifiableList(Arrays.asList(elems));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> T toVanilla(T elem) {
         if (!(elem instanceof JObject)) {
             throw new UnsupportedOperationException(elem.getClass().getName() + " isn't a JObject (JSimpleDB) subclass");
@@ -411,8 +412,16 @@ public class JTransaction {
                 Object val = jField.getter.invoke(elem);
                 if (val != null && val.getClass().getName().endsWith("$$JSimpleDB")) {
                     val = toVanilla(val);
+                    jField.setter.invoke(rv, val);
+                } else if (val instanceof ConvertedList) {
+                    List list = (List)jField.getter.invoke(rv);
+                    ConvertedList listVal = (ConvertedList)val;
+                    for (Object o : listVal) {
+                        list.add(toVanilla(o));
+                    }
+                } else {
+                    jField.setter.invoke(rv, val);
                 }
-                jField.setter.invoke(rv, val);
             } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new UnsupportedOperationException(e);
             }
